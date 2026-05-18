@@ -1,0 +1,6 @@
+pybullet>=3.2.5
+fastapi>=0.100.0
+uvicorn
+numpy
+opencv-python
+Pillow

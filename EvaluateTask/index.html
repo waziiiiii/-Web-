@@ -1,0 +1,502 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>机械臂仿真控制系统</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: "Arial", sans-serif;
+            background-color: #f5f5f5;
+            padding: 20px;
+        }
+        
+        .container {
+            max-width: 1400px;
+            margin: 0 auto;
+            background-color: white;
+            border-radius: 8px;
+            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+            padding: 20px;
+        }
+        
+        h1 {
+            text-align: center;
+            color: #333;
+            margin-bottom: 30px;
+        }
+        
+        .main-content {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 30px;
+            margin-bottom: 30px;
+        }
+        
+        .panel {
+            border: 1px solid #ddd;
+            border-radius: 6px;
+            padding: 20px;
+            background-color: #f9f9f9;
+        }
+        
+        .panel h2 {
+            color: #0066cc;
+            font-size: 18px;
+            margin-bottom: 15px;
+            border-bottom: 2px solid #0066cc;
+            padding-bottom: 10px;
+        }
+        
+        .image-display {
+            width: 100%;
+            border-radius: 6px;
+            border: 1px solid #ccc;
+            background-color: #000;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            min-height: 400px;
+        }
+        
+        .image-display img {
+            max-width: 100%;
+            max-height: 400px;
+            object-fit: contain;
+        }
+        
+        .controls-grid {
+            display: grid;
+            gap: 15px;
+        }
+        
+        .control-item {
+            display: flex;
+            flex-direction: column;
+            gap: 5px;
+        }
+        
+        .control-item label {
+            font-weight: bold;
+            color: #333;
+            font-size: 14px;
+        }
+        
+        .slider-container {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+        
+        input[type="range"] {
+            flex: 1;
+            height: 6px;
+            border-radius: 3px;
+            background: #ddd;
+            outline: none;
+            -webkit-appearance: none;
+        }
+        
+        input[type="range"]::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            appearance: none;
+            width: 18px;
+            height: 18px;
+            border-radius: 50%;
+            background: #0066cc;
+            cursor: pointer;
+        }
+        
+        input[type="range"]::-moz-range-thumb {
+            width: 18px;
+            height: 18px;
+            border-radius: 50%;
+            background: #0066cc;
+            cursor: pointer;
+            border: none;
+        }
+        
+        .value-display {
+            min-width: 60px;
+            text-align: right;
+            font-weight: bold;
+            color: #0066cc;
+            font-size: 14px;
+        }
+        
+        .status-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 10px;
+        }
+        
+        .status-item {
+            background-color: white;
+            padding: 12px;
+            border-radius: 4px;
+            border-left: 4px solid #0066cc;
+        }
+        
+        .status-item-label {
+            font-size: 12px;
+            color: #666;
+            margin-bottom: 5px;
+        }
+        
+        .status-item-value {
+            font-size: 16px;
+            font-weight: bold;
+            color: #333;
+            font-family: monospace;
+        }
+        
+        .button-group {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 15px;
+        }
+        
+        button {
+            flex: 1;
+            padding: 10px 15px;
+            border: none;
+            border-radius: 4px;
+            background-color: #0066cc;
+            color: white;
+            font-weight: bold;
+            cursor: pointer;
+            transition: background-color 0.3s;
+            font-size: 14px;
+        }
+        
+        button:hover {
+            background-color: #0052a3;
+        }
+        
+        button:active {
+            background-color: #003d7a;
+        }
+        
+        .mode-buttons button {
+            flex: 0 1 auto;
+            width: 45%;
+        }
+        
+        button.active {
+            background-color: #00cc00;
+        }
+        
+        button.active:hover {
+            background-color: #00aa00;
+        }
+        
+        .connection-status {
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            padding: 10px 15px;
+            border-radius: 4px;
+            font-weight: bold;
+            font-size: 14px;
+            z-index: 100;
+        }
+        
+        .connected {
+            background-color: #00cc00;
+            color: white;
+        }
+        
+        .disconnected {
+            background-color: #cc0000;
+            color: white;
+        }
+        
+        .loading {
+            text-align: center;
+            padding: 20px;
+            color: #666;
+        }
+        
+        .loading-spinner {
+            display: inline-block;
+            width: 30px;
+            height: 30px;
+            border: 4px solid #f3f3f3;
+            border-top: 4px solid #0066cc;
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+            margin-bottom: 10px;
+        }
+        
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+    </style>
+</head>
+<body>
+    <div class="connection-status disconnected" id="connectionStatus">
+        离线
+    </div>
+    
+    <div class="container">
+        <h1>🤖 机械臂仿真控制系统</h1>
+        
+        <div class="main-content">
+            <!-- 左侧：摄像头和状态 -->
+            <div>
+                <div class="panel">
+                    <h2>摄像头输出</h2>
+                    <div class="image-display" id="imageDisplay">
+                        <div class="loading">
+                            <div class="loading-spinner"></div>
+                            <p>连接中...</p>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="panel" style="margin-top: 20px;">
+                    <h2>机械臂状态</h2>
+                    <div class="status-grid">
+                        <div class="status-item">
+                            <div class="status-item-label">末端位置 X</div>
+                            <div class="status-item-value" id="statusX">0.00 m</div>
+                        </div>
+                        <div class="status-item">
+                            <div class="status-item-label">末端位置 Y</div>
+                            <div class="status-item-value" id="statusY">0.00 m</div>
+                        </div>
+                        <div class="status-item">
+                            <div class="status-item-label">末端位置 Z</div>
+                            <div class="status-item-value" id="statusZ">0.50 m</div>
+                        </div>
+                        <div class="status-item">
+                            <div class="status-item-label">连接状态</div>
+                            <div class="status-item-value" id="statusConnection">离线</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- 右侧：控制面板 -->
+            <div>
+                <div class="panel">
+                    <h2>控制模式</h2>
+                    <div class="button-group mode-buttons">
+                        <button id="jointModeBtn" class="active" onclick="switchMode('joint')">
+                            关节空间
+                        </button>
+                        <button id="taskModeBtn" onclick="switchMode('task')">
+                            任务空间
+                        </button>
+                    </div>
+                    
+                    <div id="jointControls">
+                        <h3 style="font-size: 16px; color: #333; margin-bottom: 15px;">关节控制</h3>
+                        <div class="controls-grid" id="jointSlidersContainer">
+                            <!-- 动态生成关节滑块 -->
+                        </div>
+                        <button onclick="applyJointAngles()" style="margin-top: 15px; width: 100%;">
+                            应用关节角度
+                        </button>
+                    </div>
+                    
+                    <div id="taskControls" style="display: none;">
+                        <h3 style="font-size: 16px; color: #333; margin-bottom: 15px;">末端位置控制</h3>
+                        <div class="controls-grid">
+                            <div class="control-item">
+                                <label>目标 X (m)</label>
+                                <input type="number" id="taskX" step="0.01" value="0" min="-1" max="1">
+                            </div>
+                            <div class="control-item">
+                                <label>目标 Y (m)</label>
+                                <input type="number" id="taskY" step="0.01" value="0" min="-1" max="1">
+                            </div>
+                            <div class="control-item">
+                                <label>目标 Z (m)</label>
+                                <input type="number" id="taskZ" step="0.01" value="0.5" min="0.1" max="1">
+                            </div>
+                        </div>
+                        <button onclick="applyTaskPosition()" style="margin-top: 15px; width: 100%;">
+                            移动到目标位置
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <script>
+        // 配置
+        const CONFIG = {
+            backendUrl: 'http://localhost:8000',
+            wsUrl: 'ws://localhost:8000',
+            numJoints: 6,
+            imageUpdateInterval: 100  // ms
+        };
+        
+        // 全局变量
+        let currentMode = 'joint';
+        let imageWs = null;
+        let controlWs = null;
+        let jointValues = Array(CONFIG.numJoints).fill(0);
+        
+        // 初始化
+        function init() {
+            createJointSliders();
+            connectWebSockets();
+            updateStatus();
+            setInterval(updateStatus, 500);
+        }
+        
+        // 创建关节滑块
+        function createJointSliders() {
+            const container = document.getElementById('jointSlidersContainer');
+            container.innerHTML = '';
+            
+            for (let i = 0; i < CONFIG.numJoints; i++) {
+                const div = document.createElement('div');
+                div.className = 'control-item';
+                div.innerHTML = `
+                    <label>关节 ${i + 1}</label>
+                    <div class="slider-container">
+                        <input type="range" min="-3.14" max="3.14" step="0.01" 
+                               value="0" id="joint_${i}"
+                               oninput="jointValues[${i}] = parseFloat(this.value); updateJointDisplay(${i})">
+                        <span class="value-display" id="joint_${i}_val">0.00</span>
+                    </div>
+                `;
+                container.appendChild(div);
+            }
+        }
+        
+        // 更新关节显示
+        function updateJointDisplay(index) {
+            const slider = document.getElementById(`joint_${index}`);
+            const val = parseFloat(slider.value);
+            document.getElementById(`joint_${index}_val`).textContent = val.toFixed(2);
+        }
+        
+        // 连接 WebSocket
+        function connectWebSockets() {
+            // 连接图像 WebSocket
+            imageWs = new WebSocket(`${CONFIG.wsUrl}/ws/images`);
+            imageWs.onopen = () => {
+                console.log('图像 WebSocket 已连接');
+                updateConnectionStatus(true);
+            };
+            imageWs.onmessage = (event) => {
+                const data = JSON.parse(event.data);
+                if (data.image) {
+                    const img = document.getElementById('imageDisplay').querySelector('img') ||
+                               document.createElement('img');
+                    img.src = 'data:image/jpeg;base64,' + data.image;
+                    if (!document.getElementById('imageDisplay').querySelector('img')) {
+                        document.getElementById('imageDisplay').innerHTML = '';
+                        document.getElementById('imageDisplay').appendChild(img);
+                    }
+                }
+            };
+            imageWs.onerror = () => {
+                console.error('图像 WebSocket 错误');
+                updateConnectionStatus(false);
+            };
+            imageWs.onclose = () => {
+                console.log('图像 WebSocket 已断开');
+                updateConnectionStatus(false);
+            };
+            
+            // 连接控制 WebSocket
+            controlWs = new WebSocket(`${CONFIG.wsUrl}/ws/control`);
+            controlWs.onopen = () => {
+                console.log('控制 WebSocket 已连接');
+            };
+            controlWs.onerror = () => {
+                console.error('控制 WebSocket 错误');
+            };
+        }
+        
+        // 更新连接状态
+        function updateConnectionStatus(connected) {
+            const el = document.getElementById('connectionStatus');
+            const statusVal = document.getElementById('statusConnection');
+            if (connected) {
+                el.className = 'connection-status connected';
+                el.textContent = '已连接';
+                statusVal.textContent = '已连接';
+            } else {
+                el.className = 'connection-status disconnected';
+                el.textContent = '离线';
+                statusVal.textContent = '离线';
+            }
+        }
+        
+        // 切换模式
+        function switchMode(mode) {
+            currentMode = mode;
+            document.getElementById('jointControls').style.display = mode === 'joint' ? 'block' : 'none';
+            document.getElementById('taskControls').style.display = mode === 'task' ? 'block' : 'none';
+            
+            document.getElementById('jointModeBtn').classList.toggle('active', mode === 'joint');
+            document.getElementById('taskModeBtn').classList.toggle('active', mode === 'task');
+        }
+        
+        // 应用关节角度
+        function applyJointAngles() {
+            if (controlWs && controlWs.readyState === WebSocket.OPEN) {
+                const joints = {};
+                for (let i = 0; i < CONFIG.numJoints; i++) {
+                    joints[i] = jointValues[i];
+                }
+                controlWs.send(JSON.stringify({
+                    type: 'set_joints',
+                    joints: joints
+                }));
+                console.log('已发送关节角度:', joints);
+            }
+        }
+        
+        // 应用任务空间位置
+        function applyTaskPosition() {
+            if (controlWs && controlWs.readyState === WebSocket.OPEN) {
+                const pos = [
+                    parseFloat(document.getElementById('taskX').value),
+                    parseFloat(document.getElementById('taskY').value),
+                    parseFloat(document.getElementById('taskZ').value)
+                ];
+                controlWs.send(JSON.stringify({
+                    type: 'move_to',
+                    position: pos
+                }));
+                console.log('已发送目标位置:', pos);
+            }
+        }
+        
+        // 更新状态
+        async function updateStatus() {
+            try {
+                const response = await fetch(`${CONFIG.backendUrl}/status`);
+                const data = await response.json();
+                
+                if (data.end_effector && data.end_effector.position) {
+                    const pos = data.end_effector.position;
+                    document.getElementById('statusX').textContent = pos[0].toFixed(2) + ' m';
+                    document.getElementById('statusY').textContent = pos[1].toFixed(2) + ' m';
+                    document.getElementById('statusZ').textContent = pos[2].toFixed(2) + ' m';
+                }
+            } catch (error) {
+                console.error('更新状态失败:', error);
+            }
+        }
+        
+        // 页面加载完毕后初始化
+        document.addEventListener('DOMContentLoaded', init);
+    </script>
+</body>
+</html>
