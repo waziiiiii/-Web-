@@ -1,0 +1,210 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>机械臂仿真控制系统</title>
+<link rel="stylesheet" href="/static/style.css?v=30">
+</head>
+<body>
+
+<h1>🤖 机械臂仿真控制系统</h1>
+
+<div class="conn-bar">
+  <span><span class="dot" id="dotCtrl"></span> 控制通道</span>
+  <span><span class="dot" id="dotStream"></span> 数据流 <span id="fpsStream" style="margin-left:4px;">-</span></span>
+  <span style="margin-left:auto;">
+    控制模式:
+    <select id="controlModeSelect" onchange="switchControlMode(this.value)" style="background:#21262d;color:#c9d1d9;border:1px solid #30363d;border-radius:4px;padding:2px 6px;font-size:0.85em;cursor:pointer;">
+      <option value="precise">精确模式</option>
+      <option value="motor">物理仿真</option>
+    </select>
+    <span id="controlModeStatus" style="margin-left:4px;font-size:0.75em;color:#8b949e;"></span>
+  </span>
+  <span id="collisionIndicator" style="display:none;max-width:400px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">⚠️ <span id="collisionCount">0</span> 碰撞</span>
+  <span>3D渲染 <span id="fps3D">-</span></span>
+</div>
+
+<!-- Toast notification -->
+<div id="toast" class="toast"></div>
+
+<div class="main">
+  <!-- LEFT: Control Panel -->
+  <div class="left-col">
+    <!-- Mode Switch -->
+    <div class="card">
+      <div class="card-title">控制模式</div>
+      <div class="mode-switch">
+        <button class="mode-btn active" id="btnJointMode" onclick="setMode('joint')">关节空间控制</button>
+        <button class="mode-btn" id="btnTaskMode" onclick="setMode('task')">任务空间控制（IK）</button>
+      </div>
+    </div>
+
+    <!-- Joint-space Control -->
+    <div class="card" id="jointCard">
+      <div class="card-title">关节角度控制</div>
+      <div id="jointSliders"></div>
+    </div>
+
+    <!-- Task-space Control (IK) -->
+    <div class="card" id="taskCard" style="display:none;">
+      <div class="card-title">末端目标位姿</div>
+      <div class="ts-grid">
+        <span class="ts-label">X (m)</span>
+        <div style="display:flex;gap:4px;align-items:center;">
+          <button class="ts-btn" onclick="ikDelta('x',-1)">−</button>
+          <input type="number" id="ikX" value="0.3" step="0.01" class="ik-input">
+          <button class="ts-btn" onclick="ikDelta('x',1)">+</button>
+        </div>
+        <span></span>
+        <span class="ts-label">Y (m)</span>
+        <div style="display:flex;gap:4px;align-items:center;">
+          <button class="ts-btn" onclick="ikDelta('y',-1)">−</button>
+          <input type="number" id="ikY" value="0.0" step="0.01" class="ik-input">
+          <button class="ts-btn" onclick="ikDelta('y',1)">+</button>
+        </div>
+        <span></span>
+        <span class="ts-label">Z (m)</span>
+        <div style="display:flex;gap:4px;align-items:center;">
+          <button class="ts-btn" onclick="ikDelta('z',-1)">−</button>
+          <input type="number" id="ikZ" value="0.3" step="0.01" class="ik-input">
+          <button class="ts-btn" onclick="ikDelta('z',1)">+</button>
+        </div>
+        <span></span>
+        <span class="ts-label">Roll (°)</span>
+        <div style="display:flex;gap:4px;align-items:center;">
+          <button class="ts-btn" onclick="ikDeltaRPY('roll',-1)">−</button>
+          <input type="number" id="ikRoll" value="0" step="5" class="ik-input">
+          <button class="ts-btn" onclick="ikDeltaRPY('roll',1)">+</button>
+        </div>
+        <span></span>
+        <span class="ts-label">Pitch (°)</span>
+        <div style="display:flex;gap:4px;align-items:center;">
+          <button class="ts-btn" onclick="ikDeltaRPY('pitch',-1)">−</button>
+          <input type="number" id="ikPitch" value="0" step="5" class="ik-input">
+          <button class="ts-btn" onclick="ikDeltaRPY('pitch',1)">+</button>
+        </div>
+        <span></span>
+        <span class="ts-label">Yaw (°)</span>
+        <div style="display:flex;gap:4px;align-items:center;">
+          <button class="ts-btn" onclick="ikDeltaRPY('yaw',-1)">−</button>
+          <input type="number" id="ikYaw" value="0" step="5" class="ik-input">
+          <button class="ts-btn" onclick="ikDeltaRPY('yaw',1)">+</button>
+        </div>
+        <span></span>
+      </div>
+      <div style="display:flex;gap:8px;margin-top:8px;">
+        <button class="mode-btn" onclick="solveIK()" style="flex:1;">求解 IK 并移动</button>
+        <button class="mode-btn" onclick="syncEToIK()" style="flex:1;background:#21262d;">同步当前末端位姿</button>
+      </div>
+      <div id="ikResult" style="margin-top:8px;font-size:0.8em;color:#8b949e;"></div>
+    </div>
+
+    <!-- End-effector Status (always visible) -->
+    <div class="card">
+      <div class="card-title">末端执行器位姿</div>
+      <div class="status-grid">
+        <span class="status-key">X:</span><span class="status-val" id="statX">-</span>
+        <span class="status-key">Y:</span><span class="status-val" id="statY">-</span>
+        <span class="status-key">Z:</span><span class="status-val" id="statZ">-</span>
+        <span class="status-key">Roll:</span><span class="status-val" id="statRoll">-</span>
+        <span class="status-key">Pitch:</span><span class="status-val" id="statPitch">-</span>
+        <span class="status-key">Yaw:</span><span class="status-val" id="statYaw">-</span>
+      </div>
+    </div>
+
+    <!-- Joint Status -->
+    <div class="card">
+      <div class="card-title">关节状态</div>
+      <div id="jointStatus"></div>
+    </div>
+  </div>
+
+  <!-- RIGHT: 3D View + Camera -->
+  <div class="mid-col" style="flex:1;min-width:0;">
+    <div class="card" style="flex:1;display:flex;flex-direction:column;min-height:0;">
+      <div class="card-title" style="text-align:center;">3D 实时可视化<br><span style="font-size:0.75em;font-weight:400;color:#d29922;">🖱️ 拖拽方块/小球可移动</span></div>
+      <div id="threejs-container"></div>
+    </div>
+  </div>
+
+  <!-- CAMERA: 2x2 Grid -->
+  <div class="right-col" style="width:380px;min-width:320px;">
+    <!-- Capture button bar -->
+    <div class="card" style="padding:8px 12px;">
+      <div style="display:flex;gap:8px;align-items:center;">
+        <button class="mode-btn" id="btnPybulletCapture" onclick="capturePybulletFrame()" style="flex:1;padding:6px 8px;font-size:0.85em;">
+          📷 拍摄PyBullet
+        </button>
+        <span id="pybulletCaptureStatus" style="font-size:0.75em;color:#8b949e;flex:1;text-align:left;word-break:break-all;white-space:pre-line;">等待拍摄</span>
+      </div>
+    </div>
+    <!-- 2x2 grid -->
+    <div class="cam-grid">
+      <!-- Top-left: PyBullet RGB -->
+      <div class="cam-cell">
+        <div class="cam-cell-title">PyBullet RGB</div>
+        <div class="cam-cell-body" style="background:#000;">
+          <img id="pybulletRGB" class="cam-cell-img" style="display:none;" alt="PyBullet RGB">
+          <div id="pybulletRGBPlaceholder" class="cam-cell-placeholder">等待拍摄...</div>
+        </div>
+      </div>
+      <!-- Top-right: PyBullet Depth -->
+      <div class="cam-cell">
+        <div class="cam-cell-title">PyBullet 深度</div>
+        <div class="cam-cell-body" style="background:#000;">
+          <img id="pybulletDepth" class="cam-cell-img" style="display:none;" alt="PyBullet Depth">
+          <div id="pybulletDepthPlaceholder" class="cam-cell-placeholder">等待拍摄...</div>
+        </div>
+      </div>
+      <!-- Bottom-left: Three.js RGB -->
+      <div class="cam-cell">
+        <div class="cam-cell-title">
+          末端RGB
+          <label class="toggle-switch" style="margin-left:auto;display:inline-flex;">
+            <input type="checkbox" id="toggleEECam" onchange="toggleEECameras()">
+            <span class="toggle-slider"></span>
+          </label>
+        </div>
+        <div class="cam-cell-body" id="eeCamBox">
+          <div id="eeCameraContainer" style="width:100%;height:100%;position:relative;"></div>
+        </div>
+        <div class="cam-cell-fps">FPS: <span id="eeCamFPS">-</span></div>
+      </div>
+      <!-- Bottom-right: Three.js Depth -->
+      <div class="cam-cell">
+        <div class="cam-cell-title">
+          末端深度
+          <label class="toggle-switch" style="margin-left:auto;display:inline-flex;">
+            <input type="checkbox" id="toggleEEDepth" onchange="toggleEECameras()">
+            <span class="toggle-slider"></span>
+          </label>
+        </div>
+        <div class="cam-cell-body" id="depthBox">
+          <div id="eeDepthContainer" style="width:100%;height:100%;position:relative;"></div>
+        </div>
+        <div class="cam-cell-fps">FPS: <span id="eeDepthFPS">-</span></div>
+      </div>
+    </div>
+    <!-- Depth legend (compact) -->
+    <div style="font-size:0.68em;color:#8b949e;display:flex;align-items:center;gap:6px;padding:2px 4px;flex-wrap:wrap;">
+      <span>深度色标:</span>
+      <span style="display:inline-block;width:12px;height:8px;background:#ff0000;border-radius:1px;"></span><span>近</span>
+      <span style="display:inline-block;width:12px;height:8px;background:#ffff00;border-radius:1px;"></span>
+      <span style="display:inline-block;width:12px;height:8px;background:#00ffff;border-radius:1px;"></span>
+      <span style="display:inline-block;width:12px;height:8px;background:#0000ff;border-radius:1px;"></span><span>远</span>
+    </div>
+  </div>
+</div>
+
+<!-- Three.js from CDN -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/loaders/STLLoader.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/DragControls.js"></script>
+
+<!-- App -->
+<script src="/static/app.js?v=30"></script>
+
+</body>
+</html>
